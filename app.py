@@ -68,7 +68,7 @@ def extract_meisai_csv(pdf_file, client):
 """
     pdf_bytes = pdf_file.read()
     for attempt in range(5):
-    try:
+     　try:
         response = client.models.generate_content(
             model='gemini-3.6-flash',
             contents=[
@@ -76,12 +76,12 @@ def extract_meisai_csv(pdf_file, client):
                 prompt
             ]
         )
-        break
-    except Exception as e:
-        if attempt < 4:
-            time.sleep(3)
-        else:
-            raise e
+        　　　　break
+     　　　　except Exception as e:
+        　　　　if attempt < 4:
+            　　　　time.sleep(3)
+        　　　　　　　　else:
+            　　　　raise e
     
     cleaned_csv = clean_csv_response(response.text)
     return pd.read_csv(io.StringIO(cleaned_csv))
