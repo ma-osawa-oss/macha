@@ -67,13 +67,21 @@ def extract_meisai_csv(pdf_file, client):
 ・コードブロック内の純粋なcsv形式のみを出力してください。
 """
     pdf_bytes = pdf_file.read()
-    response = client.models.generate_content(
-        model='gemini-3.6-flash',
-        contents=[
-            types.Part.from_bytes(data=pdf_bytes, mime_type='application/pdf'),
-            prompt
-        ]
-    )
+    for attempt in range(5):
+    try:
+        response = client.models.generate_content(
+            model='gemini-3.6-flash',
+            contents=[
+                types.Part.from_bytes(data=pdf_bytes, mime_type='application/pdf'),
+                prompt
+            ]
+        )
+        break
+    except Exception as e:
+        if attempt < 4:
+            time.sleep(3)
+        else:
+            raise e
     
     cleaned_csv = clean_csv_response(response.text)
     return pd.read_csv(io.StringIO(cleaned_csv))
