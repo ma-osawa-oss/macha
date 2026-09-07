@@ -14,7 +14,7 @@ st.title("📄 PDF自動突合システム")
 
 # サイドバー設定
 st.sidebar.header("設定")
-api_key = st.sidebar.text_input("Gemini API Key", type="password")
+api_key = st.secrets.get("GEMINI_API_KEY") or st.sidebar.text_input("Gemini API Key", type="password")
 
 st.subheader("1. PDFファイルのアップロード")
 col1, col2 = st.columns(2)
