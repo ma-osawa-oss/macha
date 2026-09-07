@@ -68,7 +68,7 @@ def extract_meisai_csv(pdf_file, client):
 """
     pdf_bytes = pdf_file.read()
     response = client.models.generate_content(
-        model='gemini-1.5-flash',
+        model='gemini-2.0-flash',
         contents=[
             types.Part.from_bytes(data=pdf_bytes, mime_type='application/pdf'),
             prompt
