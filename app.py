@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 from google import genai
 from google.genai import types
-
+import time
 # 既存の突合処理モジュール
 from steps import preprocess_data, run_loop_matching, export_excel_report
 
@@ -68,7 +68,7 @@ def extract_meisai_csv(pdf_file, client):
 """
     pdf_bytes = pdf_file.read()
     response = client.models.generate_content(
-        model='gemini-2.0-flash',
+        model='gemini-3.6-flash',
         contents=[
             types.Part.from_bytes(data=pdf_bytes, mime_type='application/pdf'),
             prompt
