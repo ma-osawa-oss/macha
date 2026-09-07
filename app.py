@@ -34,10 +34,9 @@ def clean_csv_response(text: str) -> str:
 
 
 # 明細書専用の抽出関数
+# 明細書専用の抽出関数
 def extract_meisai_csv(pdf_file, client):
-    prompt = """
-あなたは添付された「明細書」の画像から文字列を読み取り、CSVデータを作成するOCR専門システムです。
-
+    prompt = """    あなたは添付された「明細書」の画像から文字列を読み取り、CSVデータを作成するOCR専門システムです。"""
 【抽出項目と出力順序】
 部署名,規格コード型番1,規格コード型番2,数量,単位
 
