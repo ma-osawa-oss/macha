@@ -3,3 +3,4 @@ pandas
 numpy
 google-genai
 openpyxl
+python-dotenv
