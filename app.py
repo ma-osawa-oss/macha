@@ -5,16 +5,26 @@ import pandas as pd
 import streamlit as st
 from google import genai
 from google.genai import types
-import time
+from dotenv import load_dotenv
+
 # 既存の突合処理モジュール
 from steps import preprocess_data, run_loop_matching, export_excel_report
+
+# envファイル（または.env）からAPIキー等の環境変数を自動読み込み
+load_dotenv("env")
+load_dotenv()
 
 st.set_page_config(page_title="PDF自動突合アプリ", layout="wide")
 st.title("📄 PDF自動突合システム")
 
 # サイドバー設定
 st.sidebar.header("設定")
-api_key = st.secrets.get("GEMINI_API_KEY") or st.sidebar.text_input("Gemini API Key", type="password")
+
+# Streamlit Secrets または env ファイルからAPIキーを自動取得
+api_key = os.getenv("GEMINI_API_KEY") or (st.secrets["GEMINI_API_KEY"] if "GEMINI_API_KEY" in st.secrets else None)
+
+if not api_key:
+    st.sidebar.error("APIキーが設定されていません")
 
 st.subheader("1. PDFファイルのアップロード")
 col1, col2 = st.columns(2)
@@ -34,9 +44,10 @@ def clean_csv_response(text: str) -> str:
 
 
 # 明細書専用の抽出関数
-# 明細書専用の抽出関数
 def extract_meisai_csv(pdf_file, client):
-    prompt = """    あなたは添付された「明細書」の画像から文字列を読み取り、CSVデータを作成するOCR専門システムです。"""
+    prompt = """
+あなたは添付された「明細書」の画像から文字列を読み取り、CSVデータを作成するOCR専門システムです。
+
 【抽出項目と出力順序】
 部署名,規格コード型番1,規格コード型番2,数量,単位
 
@@ -64,23 +75,16 @@ def extract_meisai_csv(pdf_file, client):
 
 【出力ルール】
 ・コードブロック内の純粋なcsv形式のみを出力してください。
-pdf_bytes = pdf_file.read()
-    for attempt in range(5):
-        try:
-            response = client.models.generate_content(
-                model='gemini-3.6-flash',
-                contents=[
-                    types.Part.from_bytes(data=pdf_bytes, mime_type='application/pdf'),
-                    prompt
-                ]
-            )
-            break
-        except Exception as e:
-            if attempt < 4:
-                time.sleep(3)
-            else:
-                raise e
-
+"""
+    pdf_bytes = pdf_file.read()
+    response = client.models.generate_content(
+        model='gemini-3.6-flash',
+        contents=[
+            types.Part.from_bytes(data=pdf_bytes, mime_type='application/pdf'),
+            prompt
+        ]
+    )
+    
     cleaned_csv = clean_csv_response(response.text)
     return pd.read_csv(io.StringIO(cleaned_csv))
 
