@@ -85,7 +85,6 @@ def extract_meisai_csv(pdf_file, client):
         ],
         config=types.GenerateContentConfig(
             temperature=0.0,              # ランダム性をゼロにし読み取り精度を最大化
-            response_mime_type="text/csv" # CSV出力に強制固定（高速化）
          )
     )
     
@@ -136,7 +135,6 @@ def extract_nouhin_csv(pdf_file, client):
         ],
         config=types.GenerateContentConfig(
             temperature=0.0,              # ランダム性をゼロにし読み取り精度を最大化
-            response_mime_type="text/csv" # CSV出力に強制固定（高速化）
          )
     )
     
