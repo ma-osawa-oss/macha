@@ -78,6 +78,11 @@ def normalize_dept_name(dept_str):
             return '放射線科血管'
         return '放射線科'
 
+    if '歯科' in s: return '歯科'
+    if '採血' in s: return '中央採血室'
+    if 'B2' in s: return 'B2病棟'  # B2外来フロアもB2病棟に統一
+    if '生理検査' in s: return '生理検査室'
+
     if '滅菌' in s: return '中央滅菌室'
     if '健診' in s or 'ドック' in s: return '健診センター'
     if '内視鏡' in s: return '内視鏡室'
