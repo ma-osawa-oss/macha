@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import re
+import unicodedata  
 
 # ====================================================
 # 共通ヘルパー関数
@@ -50,19 +51,25 @@ def is_code_match(norm_a, norm_b):
     return False
 
 
+
 def normalize_dept_name(dept_str):
     if pd.isna(dept_str):
         return ""
-    s = str(dept_str).strip()
-    s = re.sub(r'\s+', '', s)
     
+    s = str(dept_str).strip()
+    # 1. 全角英数字を半角に変換（Ａ４→A4、ＩＣＵ→ICUなど）
+    s = unicodedata.normalize('NFKC', s)
+    # 2. 空白除去と大文字化
+    s = re.sub(r'\s+', '', s).upper()
+
+    # 以降の条件分岐（A4やA7などの判定）
     if 'A4' in s:
-        if 'ICU' in s or 'icu' in s:
+        if 'ICU' in s:
             return 'A4病棟(ICU)'
         return 'A4病棟'
 
     if 'A7' in s:
-        if 'ベビー' in s:
+        if 'ベビー' in s or 'BABY' in s:
             return 'A7病棟(ベビー)'
         return 'A7病棟'
 
@@ -76,13 +83,14 @@ def normalize_dept_name(dept_str):
     if '内視鏡' in s: return '内視鏡室'
     if '初療' in s: return '救命初療室'
     if '調度' in s or '倉庫' in s: return '調度課倉庫'
-    
-    s_no_paren = re.sub(r'[\(（].*?[\)）]', '', s)
+
+    # かっこ全般（【】や[]も含む）を除去
+    s_no_paren = re.sub(r'[（\(\[\【].*?[）\)\]\】]', '', s)
     match = re.match(r'^([A-Z][0-9](?:北|南)?)', s_no_paren)
     if match:
         core = match.group(1)
         return f"{core}病棟"
-        
+
     return s_no_paren
 
 
