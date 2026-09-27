@@ -89,6 +89,10 @@ def normalize_dept_name(dept_str):
     if '初療' in s: return '救命初療室'
     if '調度' in s or '倉庫' in s: return '調度課倉庫'
 
+    if '総務' in s: return '総務部'
+    if '薬剤' in s: return '薬剤部'
+    if '病理検査' in s: return '病理検査室'
+
     # かっこ全般（【】や[]も含む）を除去
     s_no_paren = re.sub(r'[（\(\[\【].*?[）\)\]\】]', '', s)
     match = re.match(r'^([A-Z][0-9](?:北|南)?)', s_no_paren)
