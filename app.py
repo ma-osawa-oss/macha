@@ -1,11 +1,14 @@
 import os
 import io
 import re
+import time
+import random
 import pandas as pd
 import streamlit as st
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
+import pypdf
 
 # 既存の突合処理モジュール
 from steps import preprocess_data, run_loop_matching, export_excel_report
@@ -43,7 +46,59 @@ def clean_csv_response(text: str) -> str:
     return text.strip()
 
 
-# 明細書専用の抽出関数
+
+    # ★ 503/429エラー対策（ページ分割・2.5-flash・指数バックオフ）
+def process_pdf_with_backoff(pdf_file, client, prompt):
+    pdf_reader = pypdf.PdfReader(pdf_file)
+    all_dfs = []
+
+    for i, page in enumerate(pdf_reader.pages):
+        writer = pypdf.PdfWriter()
+        writer.add_page(page)
+        page_bytes_io = io.BytesIO()
+        writer.write(page_bytes_io)
+        page_bytes = page_bytes_io.getvalue()
+
+        response = None
+        # 最大6回まで自動で粘り強く再試行
+        for attempt in range(6):
+            try:
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash',  # 安定・高速モデルに変更
+                    contents=[
+                        types.Part.from_bytes(data=page_bytes, mime_type='application/pdf'),
+                        prompt
+                    ],
+                    config=types.GenerateContentConfig(
+                        temperature=0.0
+                    )
+                )
+                break  # 成功したらループを抜ける
+            except Exception as e:
+                err_msg = str(e)
+                if "503" in err_msg or "429" in err_msg or "UNAVAILABLE" in err_msg:
+                    # 2^attempt + ランダム数秒のウェイト
+                    wait_time = (2 ** attempt) + random.uniform(0.5, 2.0)
+                    time.sleep(wait_time)
+                else:
+                    raise e
+        
+        # ページ間のリクエスト間隔を分散
+        time.sleep(2.0 + random.uniform(0.1, 1.0))
+
+        if response and response.text:
+            cleaned_csv = clean_csv_response(response.text)
+            if cleaned_csv:
+                try:
+                    df_page = pd.read_csv(io.StringIO(cleaned_csv))
+                    all_dfs.append(df_page)
+                except Exception:
+                    pass
+
+    if all_dfs:
+        return pd.concat(all_dfs, ignore_index=True)
+    else:
+        return pd.DataFrame()# 明細書専用の抽出関数
 def extract_meisai_csv(pdf_file, client):
     prompt = """
 あなたは添付された「明細書」の画像から文字列を読み取り、CSVデータを作成するOCR専門システムです。
@@ -76,20 +131,7 @@ def extract_meisai_csv(pdf_file, client):
 【出力ルール】
 ・コードブロック内の純粋なcsv形式のみを出力してください。
 """
-    pdf_bytes = pdf_file.read()
-    response = client.models.generate_content(
-        model='gemini-3.6-flash',
-        contents=[
-            types.Part.from_bytes(data=pdf_bytes, mime_type='application/pdf'),
-            prompt
-        ],
-        config=types.GenerateContentConfig(
-            temperature=0.0,              # ランダム性をゼロにし読み取り精度を最大化
-         )
-    )
-    
-    cleaned_csv = clean_csv_response(response.text)
-    return pd.read_csv(io.StringIO(cleaned_csv))
+    return process_pdf_with_backoff(pdf_file, client, prompt)
 
 
 # 納品書専用の抽出関数
@@ -130,20 +172,7 @@ def extract_nouhin_csv(pdf_file, client):
 【出力ルール】
 ・純粋なcsv形式 (コードブロック内) のみを出力してください。前置きや挨拶は一切禁止です。
 """
-    pdf_bytes = pdf_file.read()
-    response = client.models.generate_content(
-        model='gemini-3.6-flash',
-        contents=[
-            types.Part.from_bytes(data=pdf_bytes, mime_type='application/pdf'),
-            prompt
-        ],
-        config=types.GenerateContentConfig(
-            temperature=0.0,              # ランダム性をゼロにし読み取り精度を最大化
-         )
-    )
-    
-    cleaned_csv = clean_csv_response(response.text)
-    return pd.read_csv(io.StringIO(cleaned_csv))
+    return process_pdf_with_backoff(pdf_file, client, prompt)
 
 
 # 実行ボタン処理
