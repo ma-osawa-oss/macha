@@ -64,7 +64,7 @@ def process_pdf_with_backoff(pdf_file, client, prompt):
         for attempt in range(6):
             try:
                 response = client.models.generate_content(
-                    model='gemini-2.0-flash',  # 最新の安定モデルに変更
+                    model='gemini-3.8-flash',  # エラー画面で指定されたモデル名に変更
                     contents=[
                         types.Part.from_bytes(data=page_bytes, mime_type='application/pdf'),
                         prompt
