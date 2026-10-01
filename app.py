@@ -46,13 +46,20 @@ def clean_csv_response(text: str) -> str:
     return text.strip()
 
 
-
-    # ★ 503/429エラー対策（ページ分割・2.5-flash・指数バックオフ）
+# ★ パーセント表示（バー＋%のみ）＆ 高速化版
 def process_pdf_with_backoff(pdf_file, client, prompt):
     pdf_reader = pypdf.PdfReader(pdf_file)
+    total_pages = len(pdf_reader.pages)
     all_dfs = []
 
+    # プログレスバーのみ用意
+    progress_bar = st.progress(0, text="0%")
+
     for i, page in enumerate(pdf_reader.pages):
+        # 進捗率（%）の計算とバーの更新
+        percent = int(((i + 1) / total_pages) * 100)
+        progress_bar.progress(percent, text=f"{percent}%")
+
         writer = pypdf.PdfWriter()
         writer.add_page(page)
         page_bytes_io = io.BytesIO()
@@ -60,11 +67,11 @@ def process_pdf_with_backoff(pdf_file, client, prompt):
         page_bytes = page_bytes_io.getvalue()
 
         response = None
-        # 最大6回まで自動で粘り強く再試行
-        for attempt in range(6):
+        # 最大5回まで粘り強く再試行
+        for attempt in range(5):
             try:
                 response = client.models.generate_content(
-                    model='gemini-3.8-flash',  # エラー画面で指定されたモデル名に変更
+                    model='gemini-3.8-flash',
                     contents=[
                         types.Part.from_bytes(data=page_bytes, mime_type='application/pdf'),
                         prompt
@@ -73,18 +80,17 @@ def process_pdf_with_backoff(pdf_file, client, prompt):
                         temperature=0.0
                     )
                 )
-                break  # 成功したらループを抜ける
+                break
             except Exception as e:
                 err_msg = str(e)
                 if "503" in err_msg or "429" in err_msg or "UNAVAILABLE" in err_msg:
-                    # 2^attempt + ランダム数秒のウェイト
-                    wait_time = (2 ** attempt) + random.uniform(0.5, 2.0)
+                    wait_time = (1.5 ** attempt) + random.uniform(0.2, 1.0)
                     time.sleep(wait_time)
                 else:
                     raise e
         
-        # ページ間のリクエスト間隔を分散
-        time.sleep(2.0 + random.uniform(0.1, 1.0))
+        # 待機時間を短縮（高速化）
+        time.sleep(0.5)
 
         if response and response.text:
             cleaned_csv = clean_csv_response(response.text)
@@ -95,10 +101,14 @@ def process_pdf_with_backoff(pdf_file, client, prompt):
                 except Exception:
                     pass
 
+    # 完了したらプログレスバーを消去
+    progress_bar.empty()
+
     if all_dfs:
         return pd.concat(all_dfs, ignore_index=True)
     else:
-        return pd.DataFrame()# 明細書専用の抽出関数
+        return pd.DataFrame()
+    # 明細書専用の抽出関数
 def extract_meisai_csv(pdf_file, client):
     prompt = """
 あなたは添付された「明細書」の画像から文字列を読み取り、CSVデータを作成するOCR専門システムです。
