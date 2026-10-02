@@ -57,7 +57,10 @@ def process_pdf_with_backoff(pdf_file, client, prompt, progress_bar, start_page_
         page_bytes = page_bytes_io.getvalue()
 
         response = None
-        for attempt in range(5):
+        last_error = None
+
+        # 最大3回までのリトライに制限（長時間フリーズを防止）
+        for attempt in range(3):
             try:
                 response = client.models.generate_content(
                     model='gemini-3.8-flash',
@@ -69,14 +72,39 @@ def process_pdf_with_backoff(pdf_file, client, prompt, progress_bar, start_page_
                         temperature=0.0
                     )
                 )
+                last_error = None
                 break
             except Exception as e:
+                last_error = e
                 err_msg = str(e)
-                if "503" in err_msg or "429" in err_msg or "UNAVAILABLE" in err_msg:
-                    wait_time = (1.5 ** attempt) + random.uniform(0.2, 1.0)
-                    time.sleep(wait_time)
+                # 一時的な混雑エラー（503/429等）は1秒〜1.5秒だけ待って再試行
+                if any(code in err_msg for code in ["503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED"]):
+                    time.sleep(1.0 + random.uniform(0.1, 0.5))
                 else:
-                    raise e
+                    # 認証エラーなどの致命的エラーは即中断
+                    break
+        
+        # 3回失敗した場合は画面にエラーを出して安全停止
+        if last_error is not None:
+            st.error(f"⚠️ {current_page}ページ目でエラーが発生しました: {last_error}")
+            st.stop()
+
+        # ページ間の通常インターバル（0.5秒）
+        time.sleep(0.5)
+
+        if response and response.text:
+            cleaned_csv = clean_csv_response(response.text)
+            if cleaned_csv:
+                try:
+                    df_page = pd.read_csv(io.StringIO(cleaned_csv))
+                    all_dfs.append(df_page)
+                except Exception:
+                    pass
+
+    if all_dfs:
+        return pd.concat(all_dfs, ignore_index=True)
+    else:
+        return pd.DataFrame()
         
         # 待ち時間を最小限（0.5秒）に抑えて高速化
         time.sleep(0.5)
