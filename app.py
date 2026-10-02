@@ -38,7 +38,7 @@ def clean_csv_response(text: str) -> str:
 
 
 # ---------------------------------------------------------
-# ページ分割処理（高速化 0.5s ＆ 1本プログレスバー連携）
+# PDFページ分割処理（フリーズ防止 ＆ 高速化 ＆ 1本バー連携）
 # ---------------------------------------------------------
 def process_pdf_with_backoff(pdf_file, client, prompt, progress_bar, start_page_offset, total_all_pages):
     pdf_reader = pypdf.PdfReader(pdf_file)
@@ -90,23 +90,6 @@ def process_pdf_with_backoff(pdf_file, client, prompt, progress_bar, start_page_
             st.stop()
 
         # ページ間の通常インターバル（0.5秒）
-        time.sleep(0.5)
-
-        if response and response.text:
-            cleaned_csv = clean_csv_response(response.text)
-            if cleaned_csv:
-                try:
-                    df_page = pd.read_csv(io.StringIO(cleaned_csv))
-                    all_dfs.append(df_page)
-                except Exception:
-                    pass
-
-    if all_dfs:
-        return pd.concat(all_dfs, ignore_index=True)
-    else:
-        return pd.DataFrame()
-        
-        # 待ち時間を最小限（0.5秒）に抑えて高速化
         time.sleep(0.5)
 
         if response and response.text:
@@ -189,7 +172,9 @@ if st.button("🚀 突合処理を開始", type="primary"):
         st.warning("明細PDFと納品PDFの両方をアップロードしてください。")
     else:
         try:
-            client = genai.Client(api_key=api_key)
+            # APIキーの前後スペースを除去してクライアント初期化
+            clean_key = api_key.strip()
+            client = genai.Client(api_key=clean_key)
 
             # 1. 両方のPDFの合計ページ数を計算
             meisai_reader = pypdf.PdfReader(meisai_pdf)
@@ -210,7 +195,7 @@ if st.button("🚀 突合処理を開始", type="primary"):
             # バー消去
             progress_bar.empty()
 
-            # 読み取りチェック
+            # 読み取りチェックガード
             if df_meisai.empty:
                 st.error("明細PDFからデータを読み取れませんでした。")
                 st.stop()
@@ -222,7 +207,7 @@ if st.button("🚀 突合処理を開始", type="primary"):
             df_meisai.to_csv("meisai_temp.csv", index=False, encoding="utf-8-sig")
             df_nouhin.to_csv("nouhin_temp.csv", index=False, encoding="utf-8-sig")
 
-            # 突合処理実行
+            # 突合処理の実行（※前処理・突合関数が別ファイル等で用意されている前提の呼び出しです）
             m_df = load_and_preprocess_meisai("meisai_temp.csv")
             n_df = load_and_preprocess_nouhin("nouhin_temp.csv")
             
@@ -241,6 +226,7 @@ if st.button("🚀 突合処理を開始", type="primary"):
                 output_path=output_excel_path
             )
 
+            # 画面結果表示
             tab1, tab2 = st.tabs(["⚠️ 不一致リスト", "✅ 一致リスト"])
             with tab1:
                 st.markdown("### 【明細書側】未一致データ（部署順）")
